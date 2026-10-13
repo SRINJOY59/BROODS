@@ -1,0 +1,22 @@
+# environments
+.venv/
+.venvs/
+.venvs_hist/
+.audit_clones/
+node_modules/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# secrets
+.env
+
+# outputs: every run writes here, and published results ship as a release asset
+results/
+
+# the paper sources are not part of the code release
+paper/
+release/

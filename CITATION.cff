@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use BROODS, please cite the paper below."
+title: "BROODS: a conformance suite for OS-inspired containment in agent frameworks"
+authors:
+  - family-names: Das
+    given-names: Srinjoy
+    affiliation: Indian Institute of Technology Kharagpur
+  - family-names: Bhattacharya
+    given-names: Sourangshu
+    affiliation: Indian Institute of Technology Kharagpur
+license: MIT
+repository-code: "https://github.com/SRINJOY59/BROODS"
+version: 1.0.0
+preferred-citation:
+  type: conference-paper
+  title: "Bounds That Do Not Compose: Measuring OS-Inspired Containment in Agent Frameworks"
+  authors:
+    - family-names: Das
+      given-names: Srinjoy
+    - family-names: Bhattacharya
+      given-names: Sourangshu
+  collection-title: "NeurIPS 2026 Workshop on AgenticOS: Co-designing Systems and ML Foundations of an OS Layer for Agentic AI"
+  year: 2026

@@ -1,220 +1,215 @@
-# BROODS
+# BROODS: Bounds Resist Only One Delegation Step
 
-**B**ounds **R**esist **O**nly **O**ne **D**elegation **S**tep.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![Results](https://img.shields.io/badge/results-v1.0.0-green.svg)](https://github.com/SRINJOY59/BROODS/releases)
 
-A conformance suite that asks whether agent frameworks uphold the containment
-guarantees an operating system gives a process, and whether those guarantees
-survive **delegation**.
+Code for the paper **Bounds That Do Not Compose: Measuring OS-Inspired
+Containment in Agent Frameworks**, Srinjoy Das and Sourangshu Bhattacharya,
+IIT Kharagpur. NeurIPS 2026 Workshop on AgenticOS.
 
-They hold exactly for a single agent, and almost never compose. A framework
-that correctly bounds one agent to five model calls will run 155 of them once
-that agent delegates two levels deep, with all 31 agents individually obeying
-the limit and stopping for the reason their documentation gives.
+BROODS is a conformance suite of eleven probes. Each probe asks one agent
+framework for one containment property modelled on what an operating system
+gives a process: an iteration limit, a deadline, a token budget, cancellation
+of spawned work, isolation, accounting and so on. It then drives the framework
+with a fault injector that never lets an agent stop on its own, and counts what
+actually reaches the network.
 
-## What is measured
+<p align="center">
+  <img src="assets/overview.png" width="860" alt="Per-agent bound against a task-scoped bound at limit 5 and depth 2">
+</p>
 
-Eleven probes, each mapped to a guarantee an OS provides a process.
-
-| probe | OS analogue | question |
-|---|---|---|
-| `spawn` | `pids.max` | does a step bound bound the whole tree? |
-| `deadline` | `RLIMIT_CPU` | does a wall-clock bound return control? |
-| `token_budget` | cgroup quota | can you bound the quantity that costs money? |
-| `context_bound` | — | can you bound the size of a single request? |
-| `concurrency` | thread pool | is the number of requests in flight bounded? |
-| `rate_limit` | token bucket | is the achieved request rate bounded? |
-| `cancellation` | process groups | does cancel reach spawned descendants? |
-| `fault_isolation` | fault domains | is one sibling's failure contained? |
-| `state_isolation` | address spaces | can an agent read another's state? |
-| `accounting` | `rusage` | is reported usage correct under delegation? |
-| `reclamation` | `wait()` | do resources return after a normal run? |
-
-Each probe x system pair is a **cell**, and every cell resolves to a level
-computed from measurements, never assigned by hand:
-
-```
-L0   the guarantee cannot be requested at all - no API to ask for it
-L1   declared, and nothing enforces it
-L2   enforced, but only after an overshoot
-L3   enforced exactly for one agent; does not survive delegation
-L4   enforced, and composes across the tree
-ERR  the probe did not execute - NOT a level (see "failing toward a pass")
-N/A  the property was never exercised (e.g. no threads were ever created)
-```
-
-## Systems under test
-
-Seven frameworks — `langgraph`, `crewai`, `autogen`, `pydantic_ai`,
-`openai_agents`, `smolagents`, `llamaindex` — and `baseline`, a 40-line
-handwritten ReAct loop with no dependencies outside the standard library.
-
-The baseline is the control, and it is the point. If frameworks were merely
-immature, obviously-correct handwritten code would do better. It does not: it
-reproduces their growth curve digit for digit, which locates the shortfall in
-where the counter lives and not in the quality of any library.
+Every framework enforces its iteration limit within one run. An agent called as
+a tool starts a run of its own, so the limit restarts at every level of
+delegation. With a declared limit of 5 and a model that always delegates, the
+left tree makes 155 model calls. A single budget scoped to the whole task, the
+right tree, stops at 5.
 
 ## Results
 
-88 cells: 32 at L0, 24 L1, 6 L2, 15 L3, 6 L4, plus 2 N/A and 3 ERR.
+Model calls at the socket for a declared limit of 5, by delegation depth:
 
-| | spawn | deadline | token | context | concur | rate | cancel | fault | state | acct | reclaim |
+| System | Depth 0 | Depth 1 | Depth 2 | Depth 3 |
+|---|---:|---:|---:|---:|
+| AutoGen 0.7.5, PydanticAI 2.35.0, OpenAI Agents SDK 0.22.0 | 5 | 30 | 155 | 780 |
+| CrewAI 1.15.17 | 6 | 36 | 186 | not run |
+| smolagents 1.26.0 | 6 | 36 | 186 | 936 |
+| LlamaIndex 0.14.24 | 5 | 25 | 105 | 425 |
+| LangGraph 1.2.11 | 3 | 9 | 21 | 45 |
+| baseline (40-line control loop) | 5 | 30 | 155 | 780 |
+| baseline with one task-scoped budget | 5 | 5 | 5 | 5 |
+
+The full matrix of 88 cells. L0: the property cannot be requested. L1: it can
+be requested but had no effect. L2: enforced only after an overshoot. L3: holds
+for one run but not across delegation. L4: holds for the whole delegation tree.
+
+| System | spawn | deadline | token | context | concurrency | rate | cancel | fault | state | accounting | reclaim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `baseline` | L3 | L1 | L0 | L0 | L0 | L0 | L1 | L1 | L1 | L1 | N/A |
-| `langgraph` | L3 | L1 | L0 | L0 | L3 | L3 | L1 | L1 | L1 | **L4** | **L4** |
-| `crewai` | L3 | L1 | L2 | L0 | L0 | L2 | L0 | L3 | L1 | L1 | L2 |
-| `autogen` | L3 | L1 | L3 | L0 | L0 | L0 | L1 | L3 | L1 | L1 | **L4** |
-| `pydantic_ai` | L3 | L0 | L2 | L2 | L2 | L0 | L1 | L1 | L1 | L1 | **L4** |
-| `openai_agents` | L3 | L0 | L0 | L0 | L0 | L0 | L1 | L3 | L1 | L1 | **L4** |
-| `smolagents` | L3 | L0 | L0 | L0 | L0 | L0 | L0 | L3 | L1 | L0 | N/A |
-| `llamaindex` | L0 | L3 | L0 | L0 | L0 | ERR | L0 | ERR | ERR | L0 | **L4** |
+| baseline | L3 | L1 | L0 | L0 | L0 | L0 | L1 | L1 | L1 | L1 | n/a |
+| LangGraph | L3 | L1 | L0 | L0 | L3 | L3 | L1 | L1 | L1 | L4 | L4 |
+| CrewAI | L3 | L1 | L1 | L0 | L0 | L2 | L0 | L3 | L1 | L1 | L2 |
+| AutoGen | L3 | L1 | L3 | L0 | L0 | L0 | L1 | L3 | L1 | L1 | L4 |
+| PydanticAI | L3 | L0 | L2 | L2 | L1 | L0 | L1 | L1 | L1 | L1 | L4 |
+| OpenAI Agents | L3 | L0 | L0 | L0 | L0 | L0 | L1 | L3 | L1 | L1 | L4 |
+| smolagents | L3 | L0 | L0 | L0 | L0 | L0 | L0 | L3 | L1 | L0 | n/a |
+| LlamaIndex | L3 | L3 | L0 | L0 | L0 | L2 | L0 | L3 | L1 | L0 | L4 |
 
-Only 32 of the 88 cells can say anything about composition at all — the rest
-either run at a single depth or cannot separate systems. Of those 32, one
-reaches L4.
+Handoffs, which pass control within one run, held the bound in the two
+frameworks where we tested them. Every nesting construct we tested multiplied
+it unless the caller's budget was passed in by hand. TaskScope
+(`broods/scope.py`), a budget scoped to the task and enforced at the HTTP
+client, held the declared call limit on all eight systems once its context was
+carried across threads.
 
-`spawn` at a declared limit of five, LLM calls (agents) by depth:
+## Installation
 
-| | d0 | d1 | d2 | d3 |
-|---|---|---|---|---|
-| `baseline` | 5 (1) | 30 (6) | 155 (31) | 780 (156) |
-| `langgraph` | 3 (1) | 9 (3) | 21 (7) | 45 (15) |
-| `crewai` | 6 (1) | 36 (6) | 186 (31) | ERR |
-| `autogen` | 5 (1) | 30 (6) | 155 (31) | 780 (156) |
-| `pydantic_ai` | 5 (1) | 30 (6) | 155 (31) | 780 (156) |
-| `openai_agents` | 5 (1) | 30 (6) | 155 (31) | 780 (156) |
-| `smolagents` | 6 (1) | 36 (6) | 186 (31) | 936 (156) |
-
-Counting units differ: only four of the seven issue exactly `L` calls for a
-declared `L`. `crewai` and `smolagents` issue `L+1`, because the terminal
-answer is not an iteration by their counters, and `langgraph` issues
-`ceil(L/2)`, because `recursion_limit` counts graph steps and a model call
-costs two of them.
-
-## Layout
-
-```
-probes/        one directory per probe; each defines run() and verdict()
-frameworks/    one adapter per system, each executed in its own venv
-adapters/      shared adapter base and the in-process variants
-native/        the framework-native multi-agent constructs, measured separately
-proxy.py       OpenAI-compatible proxy: fault injector and independent observer
-runner.py      one probe x systems x depths
-run_all.py     the whole matrix, into one timestamped bundle with a manifest
-audit_caps.py  transitive introspection sweep: what bound can a framework express?
-analyze.py     reads a bundle and emits the matrix
-```
-
-## Running it
-
-The package imports itself as `broods`, so clone it into a directory of that
-name and work from the parent:
+BROODS needs Python 3.10 or later. The harness uses only the standard library.
+Each framework under test runs in its own virtual environment, because the
+frameworks pin incompatible versions of `openai`, `pydantic` and
+`langchain-core`.
 
 ```bash
-git clone https://github.com/SRINJOY59/BROODS.git broods
+git clone https://github.com/SRINJOY59/BROODS.git
+cd BROODS
+pip install -e ".[dev]"
+bash scripts/setup_envs.sh        # one venv per framework under .venvs/
 ```
 
-The eight environments are separate because the frameworks pin incompatible
-dependencies — `openai` alone spans 2.54.0 to 3.5.0 across them. Each adapter
-runs as a subprocess under its own interpreter, resolved from `.venvs/<name>`
-relative to the parent directory.
+`requirements/<framework>.txt` holds the frozen dependency closure of each
+environment. On Windows, run the shell scripts from Git Bash.
+
+## Quick start
+
+The test suite runs offline in a few seconds and needs no framework. It checks
+the fault injector, the scoring rules and an end-to-end `spawn` run on the
+standard-library control.
 
 ```bash
-python -m broods.run_all
+pytest
 ```
+
+Run one probe on chosen systems, or the whole matrix:
 
 ```bash
-python -m broods.run_all --probes spawn accounting --trials 3
+broods-probe --probe spawn --frameworks baseline langgraph --depths 0 1 2
+broods-matrix --trials 3          # writes results/full/matrix_<stamp>.json
+broods-table results/full/matrix_<stamp>.json
 ```
+
+`broods-table` recomputes every level from the raw rows with the current
+scoring rules. Given several bundles, each later one replaces the cells it
+contains, so a targeted re-run can be layered over a full matrix.
+
+Nothing above calls a model provider. Live validation needs an OpenRouter key
+in a `.env` file at the repository root (`OPENROUTER_API_KEY=...`):
 
 ```bash
-python -m broods.runner --probe spawn --depths 0 1 2
+broods-matrix --probes spawn --real-probes spawn
 ```
+
+## Reproducing the paper
+
+`bash scripts/reproduce_paper.sh` regenerates every measurement in a few hours.
+The results used in the paper are attached to the
+[v1.0.0 release](https://github.com/SRINJOY59/BROODS/releases) as
+`broods-results-v1.0.0.zip`. Its `INDEX.txt` maps each table to its files.
+To rebuild Table 2 from that archive:
 
 ```bash
-python -m broods.runner --probe rate_limit --frameworks crewai langgraph
+unzip broods-results-v1.0.0.zip
+broods-table results/full/matrix_20260922T224109Z.json \
+             results/full/matrix_20261006T113628Z.json \
+             results/full/matrix_20261013T213213Z.json
 ```
 
-Live-provider runs read `OPENROUTER_API_KEY` from a `.env` in the parent
-directory. Only four probes admit a live model; the rest need the injector to
-create the condition they measure, and run offline.
+| Paper item | Command |
+|---|---|
+| Tables 2 and 3 | `broods-matrix --trials 3`, then `broods-table` |
+| Growth-law check | `python -m broods.analyze --bundle latest --holdout` |
+| Table 4, delegation constructs | `.venvs/<fw>/Scripts/python broods/native/<script>.py` |
+| Table 6, capability audit | `.venvs/<fw>/Scripts/python broods/audit_caps.py <fw>` |
+| Table 8, TaskScope | `python -m broods.experiments.scope_eval --trials 3` |
+
+On Linux and macOS the environment interpreter is `.venvs/<fw>/bin/python`.
+Every result bundle records the git commit, the interpreter and the frozen
+packages of each environment it used.
 
 ## How it works
 
 ```
-runner ──> proxy (:8099)          OpenAI-compatible; observer + fault injector
-       └─> subprocess per venv ──> adapter ──> framework ──> back to the proxy
+broods-matrix ──> fault injector and observer (local, OpenAI-compatible)
+              └─> one subprocess per framework venv ──> adapter ──> framework ──┘
 ```
 
-The proxy is both halves of the method. As a **fault injector** it serves
-scripted replies so an agent provably never stops on its own, which makes any
-stop attributable to the framework and not to a model changing its mind. As an
-**observer** it counts every request that physically arrived — socket truth a
-framework cannot misreport, which is what lets `accounting` catch a 33%
-under-report and `cancellation` catch orphaned children.
+* **The proxy** (`broods/proxy.py`) answers every model request with another
+  tool call, so any stop is the framework's doing, and it counts every request
+  that reaches the socket. Each reply reports a fixed usage of 28 tokens, so the
+  token probes test whether a framework sums the usage it is told.
+* **Probes** (`broods/probes/`) are written once against a uniform adapter
+  interface and never import a framework. Each one declares a bound, builds a
+  delegation tree of fixed shape, injects a workload and scores the result.
+* **Adapters** (`broods/frameworks/`) know how one framework spells a bound and
+  builds an agent, and otherwise keep the framework's defaults.
+* **Levels** come from fixed rules in each probe's `verdict()`, documented in
+  Appendix D of the paper and pinned by `tests/test_verdicts.py`.
 
-Probes are written against a uniform `FrameworkAdapter` and never import a
-framework, so one probe runs unmodified against every system, and the
-delegation tree is built in framework-agnostic code so the topology under test
-is fixed by the harness.
+### Adding a framework or a probe
 
-Adding a framework is one file implementing `version`, `supports`,
-`make_agent` and `invoke`. Adding a probe is one class with `run` and
-`verdict`.
+A framework is one file, `broods/frameworks/<name>/adapter.py`, implementing
+`FrameworkAdapter` from `broods/frameworks/base.py`: `version`, `supports`,
+`make_agent` and `invoke`, and optionally `start`, `cancel`, `join` and
+`report_usage`. Add its frozen environment to `requirements/` and its name to
+`FRAMEWORKS` in `broods/runner.py`.
 
-## Failing toward a pass
+A probe is one class in `broods/probes/<name>/probe.py` with `run` and
+`verdict`, registered in `broods/probes/__init__.py`.
 
-Every bug found while building this produced a **false pass**, never a false
-failure:
+## Repository structure
 
-- a heap scan that returned nothing became "perfect isolation"
-- child agents that never executed became "the budget composes"
-- a probe that never reached the proxy became "perfectly bounded"
-- threads that were never allocated became "all threads reclaimed"
-- a usage callback overwritten by a nested child gave a 66.7% attribution
-  error where the true figure was 33.3%
-- an elapsed-time denominator floored at 1e-9 and then rounded to three
-  places, restoring the zero, would have read one request as a perfectly
-  respected rate
+```
+broods/
+  proxy.py, proxy_client.py   fault injector and observer
+  runner.py, run_all.py       run one probe, or the full matrix
+  table.py                    recompute levels from result bundles
+  probes/                     the eleven probes and their scoring rules
+  frameworks/                 one adapter per system
+  scope.py                    TaskScope, the task-scoped budget
+  native/                     each framework's own delegation constructs
+  audit_caps.py               capability audit behind every L0
+  experiments/                TaskScope evaluation and extended studies
+requirements/                 frozen environment for each system
+scripts/                      environment setup and full reproduction
+tests/                        offline tests
+assets/                       README figure
+```
 
-The asymmetry is structural, not bad luck: a probe that does not run, a scan
-that finds nothing, and a resource never created are all indistinguishable
-from compliance. The suite is therefore built to distrust its own clean
-results. Zero-call runs and non-executing children return `ERR` instead of a
-level, and `reclamation` returns `N/A` instead of crediting a framework for
-reaping threads it never created.
+`broods/experiments/` also holds studies for an extended version of this work:
+protocol hops, live branching, older releases and a repository audit.
 
-Anyone extending this should assume the same: a new probe reporting everything
-green is far more likely to be broken than to be good news.
+## Limitations
 
-## Establishing absence
+* Every count is a ceiling under a model that always delegates. A live model
+  delegates less.
+* Cancellation is issued by the harness, which starts children on its own
+  threads. Framework-native parallel primitives are not exercised.
+* The capability audit reads signatures, so a bound reachable only through
+  `**kwargs` can escape it, as LlamaIndex's iteration limit did.
+* TaskScope gates model requests made through the HTTP clients it wraps. It does
+  not stop a tool that is already running, and it shares the address space of
+  every tool, so it is not a sandbox.
 
-An `L0` is a claim that a framework exposes no way to ask for a guarantee, so
-it is made by a separate instrument and not by the adapters. `audit_caps.py`
-runs inside each framework's own environment, enumerates every constructor
-parameter, model field and run-method parameter of the classes that
-framework's adapter builds on, expands any whose declared type is itself one
-of that framework's classes, and matches the transitive surface against a
-deliberately broad keyword set per capability.
+## Citation
 
-That sweep has caught five false `L0`s. Two were found only once it followed a
-parameter into its own type: `langgraph` and `llamaindex` both express a
-request-rate bound through a limiter that hangs off the model object instead
-of the agent, and neither is visible from the agent constructors alone.
+```bibtex
+@inproceedings{das2026broods,
+  title     = {Bounds That Do Not Compose: Measuring {OS}-Inspired Containment in Agent Frameworks},
+  author    = {Das, Srinjoy and Bhattacharya, Sourangshu},
+  booktitle = {NeurIPS 2026 Workshop on AgenticOS: Co-designing Systems and ML Foundations of an OS Layer for Agentic AI},
+  year      = {2026}
+}
+```
 
-## Known limitations
+## License
 
-- **`llamaindex` reports ERR on three probes.** Its `FunctionAgent` accepts a
-  tool call and never executes the tool under this harness. Those are adapter
-  gaps, **not findings**. Its `L0` results elsewhere are genuine.
-- **The workload is adversarial by construction.** The suite measures what a
-  substrate permits when delegation does not stop, not how often real
-  deployments delegate that way.
-- **The default matrix is one trial per cell.** Use `--trials 3` for anything
-  quoted. Call counts are invariant across runs; wall-clock quantities are not.
-- **`cancellation` uses harness-owned concurrency**, modelling the common
-  pattern of firing a sub-agent from inside a tool. It does not exercise
-  framework-native parallelism, where a framework may track children it
-  started itself, so orphan counts bound containment from above.
-- **Absence is only as good as the names.** The introspection sweep recognises
-  a mechanism when its parameter is named like one; a bound spelled
-  unrecognisably would still read `L0`.
+MIT. See [LICENSE](LICENSE). Questions and bug reports are welcome as
+[GitHub issues](https://github.com/SRINJOY59/BROODS/issues).

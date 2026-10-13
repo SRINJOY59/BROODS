@@ -1,0 +1,9 @@
+# broods :: baseline environment
+# frozen 2026-08-27 from live venvs
+#
+# install:  python -m venv .venvs/baseline
+#           .venvs/baseline/bin/python -m pip install -r requirements/baseline.txt      # POSIX
+#           .venvs/baseline/Scripts/python.exe -m pip install -r requirements/baseline.txt  # Windows
+#
+# top-level: none -- the control is stdlib-only, and an empty environment is the claim being made
+

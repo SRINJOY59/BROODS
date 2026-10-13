@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "broods"
+dynamic = ["version"]
+description = "A conformance suite for OS-inspired containment in LLM agent frameworks"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Srinjoy Das" },
+  { name = "Sourangshu Bhattacharya" },
+]
+requires-python = ">=3.10"
+# The harness itself is standard library only. Each framework under test
+# runs in its own virtual environment, built from requirements/ by
+# scripts/setup_envs.sh.
+dependencies = []
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+broods-matrix = "broods.run_all:main"
+broods-probe = "broods.runner:main"
+broods-table = "broods.table:main"
+
+[project.urls]
+Repository = "https://github.com/SRINJOY59/BROODS"
+
+[tool.setuptools.dynamic]
+version = { attr = "broods.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["broods*"]
+
+[tool.setuptools.package-data]
+broods = ["ts/*.mjs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,37 @@
+# broods :: autogen environment
+# frozen 2026-08-27 from live venvs
+#
+# install:  python -m venv .venvs/autogen
+#           .venvs/autogen/bin/python -m pip install -r requirements/autogen.txt      # POSIX
+#           .venvs/autogen/Scripts/python.exe -m pip install -r requirements/autogen.txt  # Windows
+#
+# top-level: autogen-agentchat autogen-ext[openai]
+
+aiofiles==25.1.0
+annotated-types==0.8.0
+anyio==4.14.2
+autogen-agentchat==0.7.5
+autogen-core==0.7.5
+autogen-ext==0.7.5
+certifi==2026.7.22
+charset-normalizer==3.5.1
+h11==0.16.0
+httpcore2==2.12.0
+httpx2==2.12.0
+idna==3.19
+jiter==0.16.0
+jsonref==1.1.0
+openai==3.3.1
+opentelemetry-api==1.44.0
+pillow==12.3.0
+protobuf==5.29.6
+pydantic==2.13.4
+pydantic_core==2.46.4
+regex==2026.7.19
+requests==2.34.2
+sniffio==1.3.1
+tiktoken==0.14.0
+truststore==0.10.4
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.7.0
